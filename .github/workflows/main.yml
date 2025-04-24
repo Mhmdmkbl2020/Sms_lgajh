@@ -5,7 +5,7 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 70
 
     steps:
     - uses: actions/checkout@v4
@@ -15,21 +15,44 @@ jobs:
       with:
         python-version: '3.8'
 
-    - name: Install Java & Dependencies
+    - name: Install System Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y openjdk-17-jdk zip unzip
+        sudo apt-get install -y \
+            zip unzip openjdk-17-jdk \
+            libncurses5-dev libssl-dev zlib1g-dev
 
-    - name: Install Build Tools
+    - name: Setup Android SDK
+      run: |
+        mkdir -p ~/.android
+        touch ~/.android/repositories.cfg
+        yes | sdkmanager --licenses --sdk_root=$ANDROID_SDK_ROOT
+
+    - name: Install Android Tools
+      run: |
+        sdkmanager "platforms;android-34" \
+        "build-tools;34.0.0" \
+        "ndk;26.1.10909125" \
+        "cmake;3.22.1"
+
+    - name: Install Python-for-Android
+      run: |
+        git clone --depth 1 --branch develop https://github.com/kivy/python-for-android
+        cd python-for-android
+        pip install -e .
+        echo "PYTHONPATH=$PYTHONPATH:$(pwd)" >> $GITHUB_ENV
+
+    - name: Install Buildozer
       run: |
         pip install buildozer==1.5.0
-        buildozer android clean
 
     - name: Build APK
       run: |
+        buildozer init
+        buildozer -v android clean
         buildozer -v android release
 
-    - name: Upload Artifact
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: sms-app
